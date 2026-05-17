@@ -1,0 +1,5 @@
+alpaca-trade-api>=1.0.0
+tulipy>=0.4.0
+pandas>=1.0
+numpy>=1.0
+pytz>=2020.0

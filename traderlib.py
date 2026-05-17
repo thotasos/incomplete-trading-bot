@@ -201,15 +201,30 @@ class Trader:
             type = 'limit'
             self._L.info('Desired limit price for limit order: %.3f$' % orderDict['limit_price'])
 
+            # Get current price for validation
+            try:
+                current_price = float(self.alpaca.get_position(symbol).current_price)
+            except Exception:
+                current_price = orderDict['limit_price']  # fallback if position not found
+
             if side is 'buy':
                 limit_price = orderDict['limit_price'] * (1+self.pctMargin)
-                # this line modifies the price that comes from the orderDict
-                # adding the needed flexibility for making sure the order goes through
             elif side is 'sell':
                 limit_price = orderDict['limit_price'] * (1-self.pctMargin)
             else:
                 self._L.info('Side not identified: ' + str(side))
-                block_thread(self._L,e,self.thName)
+                block_thread(self._L, e, self.thName)
+
+            # Validate: adjusted price must be within 50% of current price
+            if limit_price > current_price * 1.5:
+                self._L.info('DANGER: Adjusted buy limit price (%.3f) is >150%% of current price (%.3f)' % (limit_price, current_price))
+                self._L.info('ABORTING order to prevent overexpenditure!')
+                return False
+            if limit_price < current_price * 0.5:
+                self._L.info('DANGER: Adjusted sell limit price (%.3f) is <50%% of current price (%.3f)' % (limit_price, current_price))
+                self._L.info('ABORTING order to prevent underselling!')
+                return False
+
             self._L.info('Corrected (added margin) limit price: %.3f$' % limit_price)
 
         elif orderDict['type'] is 'market': # adjust order for a market type

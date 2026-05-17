@@ -20,6 +20,7 @@ class AssetHandler:
         self.availableAssets = set() # assets availabe post filter
         self.usedAssets = set() # taken assets being traded
         self.excludedAssets = {'SPCE'} # excluded assets (EXAMPLE)
+        self._lock = threading.Lock()  # thread safety for asset operations
 
         try:
             self.rawAssets = set(pd.read_csv(gvars.RAW_ASSETS))
@@ -37,14 +38,16 @@ class AssetHandler:
     def find_target_asset(self):
 
         while True:
-            self.availableAssets = self.tradeableAssets
-            self.availableAssets -= self.usedAssets
-            self.availableAssets -= self.excludedAssets
-            self.availableAssets -= self.lockedAssets
+            with self._lock:
+                self.availableAssets = self.tradeableAssets
+                self.availableAssets -= self.usedAssets
+                self.availableAssets -= self.excludedAssets
+                self.availableAssets -= self.lockedAssets
 
             try:
                 chosenAsset = random.choice(list(self.availableAssets)) # pick a chosen asset randomly
-                self.usedAssets.add(chosenAsset)
+                with self._lock:
+                    self.usedAssets.add(chosenAsset)
                 print('Chosen asset: ' + chosenAsset)
                 print('%i available assets, %i used assets, %i locked assets\n' % (len(self.availableAssets),len(self.usedAssets),len(self.lockedAssets)))
                 return chosenAsset
@@ -55,12 +58,14 @@ class AssetHandler:
     def make_asset_available(self,ticker):
 
         try:
-            self.usedAssets.remove(ticker)
+            with self._lock:
+                self.usedAssets.remove(ticker)
         except Exception as e:
             print('Could not remove %s from used assets, not found' % ticker)
             print(e)
 
-        self.availableAssets.add(ticker)
+        with self._lock:
+            self.availableAssets.add(ticker)
         print('Asset %s was made available' % ticker)
         time.sleep(1)
 
@@ -68,9 +73,9 @@ class AssetHandler:
         if type(ticker) is not str:
             raise Exception('ticker is not a string!')
 
-        time = datetime.now()
-        self.usedAssets.remove(ticker)
-        self.lockedAssets.add(ticker)
+        with self._lock:
+            self.usedAssets.remove(ticker)
+            self.lockedAssets.add(ticker)
 
     def unlock_assets(self):
         # this function unlocks the locked assets periodically
